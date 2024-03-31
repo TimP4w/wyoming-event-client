@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-#MIT License Copyright (c) 2023 Michael Hansen (https://github.com/rhasspy/wyoming-satellite)
-
 """Controls the LEDs on the ReSpeaker 4mic HAT."""
-
 import argparse
 import asyncio
 import logging
@@ -10,6 +7,8 @@ import time
 from functools import partial
 from math import ceil
 from typing import Tuple
+import requests
+import json
 
 import gpiozero
 import spidev
@@ -44,7 +43,8 @@ async def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--uri", required=True, help="unix:// or tcp://")
-    #
+    parser.add_argument("--led-brightness", type=int, default=31, help="LED brightness (1-31)")
+    parser.add_argument("--homeassistant-token", required=True, help="Home Assistant Long Lived token")
     parser.add_argument("--debug", action="store_true", help="Log DEBUG messages")
     args = parser.parse_args()
 
@@ -57,13 +57,13 @@ async def main() -> None:
     led_power = gpiozero.LED(LEDS_GPIO, active_high=True)
     led_power.on()
 
-    leds = APA102(num_led=NUM_LEDS)
+    leds = APA102(num_led=NUM_LEDS, global_brightness=args.led_brightness)
 
     # Start server
     server = AsyncServer.from_uri(args.uri)
 
     try:
-        await server.run(partial(LEDsEventHandler, args, leds))
+        await server.run(partial(EventHandler, args, leds))
     except KeyboardInterrupt:
         pass
     finally:
@@ -81,7 +81,7 @@ _BLUE = (0, 0, 255)
 _GREEN = (0, 255, 0)
 
 
-class LEDsEventHandler(AsyncEventHandler):
+class EventHandler(AsyncEventHandler):
     """Event handler for clients."""
 
     def __init__(
@@ -92,40 +92,51 @@ class LEDsEventHandler(AsyncEventHandler):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-
         self.cli_args = cli_args
         self.client_id = str(time.monotonic_ns())
         self.leds = leds
+        self.is_processing = False
+        
+        self._HA_TOKEN = cli_args.homeassistant_token
 
         _LOGGER.debug("Client connected: %s", self.client_id)
 
     async def handle_event(self, event: Event) -> bool:
         _LOGGER.debug(event)
 
-        if StreamingStarted.is_type(event.type):
+        if (event.type == "pong" and self.is_processing):
+            self.duck_sonos()
+        elif StreamingStarted.is_type(event.type):
             self.color(_YELLOW)
         elif Detection.is_type(event.type):
+            self.is_processing = True
             self.color(_BLUE)
             await asyncio.sleep(1.0)  # show for 1 sec
         elif VoiceStarted.is_type(event.type):
             self.color(_YELLOW)
         elif Transcript.is_type(event.type):
+            self.is_processing = False
             self.color(_GREEN)
             await asyncio.sleep(1.0)  # show for 1 sec
         elif StreamingStopped.is_type(event.type):
+            self.is_processing = False
             self.color(_BLACK)
+        elif event.type == "voice-stopped":
+          await self.think()
+        elif event.type == "synthesize":
+          self.is_processing = False
+          text = event.data["text"]
+          self.synthesize_in_ha(text)
         elif RunSatellite.is_type(event.type):
             self.color(_BLACK)
         elif SatelliteConnected.is_type(event.type):
-            # Flash
-            for _ in range(3):
-                self.color(_GREEN)
-                await asyncio.sleep(0.3)
-                self.color(_BLACK)
-                await asyncio.sleep(0.3)
+            await self.flash_leds(_GREEN)
         elif SatelliteDisconnected.is_type(event.type):
             self.color(_RED)
-
+        elif (event.type == "error"):
+            self.is_processing = False
+            await self.flash_leds(_RED)
+            
         return True
 
     def color(self, rgb: Tuple[int, int, int]) -> None:
@@ -133,8 +144,48 @@ class LEDsEventHandler(AsyncEventHandler):
             self.leds.set_pixel(i, rgb[0], rgb[1], rgb[2])
 
         self.leds.show()
+        
+    async def think(self) -> None:
+        for i in range(NUM_LEDS):
+            if (i % 2 == 0):
+              self.leds.set_pixel(i, 0, 0, 255)
+            else:
+              self.leds.set_pixel(i, 0, 255, 0)
+        self.leds.show()
+        for i in range(20):
+          self.leds.rotate(i)
+          self.leds.show()
+          await asyncio.sleep(0.1)
 
+               
+    async def flash_leds(self, rgb: Tuple[int, int, int]) -> None:
+        for _ in range(3):
+          self.color(rgb)
+          await asyncio.sleep(0.3)
+          self.color(_BLACK)
+          await asyncio.sleep(0.3)
+          
+    def duck_sonos(self):
+      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/awake_jarvis"
 
+      headers = {
+          "Content-Type": "application/json",
+          "Authorization": f"Bearer {self._HA_TOKEN}"
+      }
+      requests.post(HA_SYNTHESIZE_HOOK_URL, headers=headers) 
+    
+    def synthesize_in_ha(self, text):
+      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/announce_jarvis"
+
+      curl_data = {
+          "message": text
+      }
+
+      headers = {
+          "Content-Type": "application/json",
+          "Authorization": f"Bearer {self._HA_TOKEN}"
+      }
+      requests.post(HA_SYNTHESIZE_HOOK_URL, headers=headers, data=json.dumps(curl_data)) 
 # -----------------------------------------------------------------------------
 
 

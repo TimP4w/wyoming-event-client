@@ -1,24 +1,22 @@
-#MIT License Copyright (c) 2023 Michael Hansen (https://github.com/rhasspy/wyoming-satellite)
 FROM python:3.11-slim-bookworm
 
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends avahi-utils
-
 WORKDIR /app
 
-COPY sounds/ ./sounds/
-COPY script/setup ./script/
-COPY setup.py requirements.txt MANIFEST.in ./
-COPY wyoming_satellite/ ./wyoming_satellite/
+# Install GCC and other build essentials
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends gcc libc6-dev && \
+  rm -rf /var/lib/apt/lists/*
 
-RUN script/setup
+COPY event_handler.py requirements.txt MANIFEST.in ./
 
-COPY script/run ./script/
-COPY docker/run ./
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir --upgrade --upgrade wheel setuptools
+RUN pip install --no-cache-dir -f 'https://synesthesiam.github.io/prebuilt-apps/' -r requirements.txt
+RUN pip install --no-cache-dir RPi.GPIO pigpio
 
-EXPOSE 10700
+EXPOSE 10500
 
-ENTRYPOINT ["/app/run"]
+CMD ["python", "event_handler.py"]
