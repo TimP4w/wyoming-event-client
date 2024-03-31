@@ -1,0 +1,3 @@
+gpiozero
+spidev
+wyoming==1.5.3
