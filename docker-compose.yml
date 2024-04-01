@@ -1,0 +1,93 @@
+version: "3.8"
+services:
+  playback:
+    container_name: wyoming-snd-external
+    build: https://github.com/rhasspy/wyoming-snd-external.git
+    image: wyoming-snd-external
+    restart: unless-stopped
+    ports:
+      - "10601:10601"
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - audio
+    command:
+      - "--device"
+      - "plughw:CARD=Headphones"
+      - "--debug"
+  microphone:
+    container_name: wyoming-mic-external
+    build: https://github.com/rhasspy/wyoming-mic-external.git
+    image: wyoming-mic-external
+    restart: unless-stopped
+    ports:
+      - "10600:10600"
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - audio
+    depends_on:
+      - satellite
+    command:
+      - "--device"
+      - "plughw:CARD=seeed4micvoicec"
+      - "--debug"
+  satellite:
+    container_name: wyoming-satellite
+    build: https://github.com/rhasspy/wyoming-satellite.git
+    image: wyoming-satellite
+    hostname: jarvis-satellite
+    restart: unless-stopped
+    ports:
+      - "10700:10700"
+    command:
+      - "--name"
+      - "jarvis-satellite"
+      - "--uri"
+      - "tcp://0.0.0.0:10700"
+      - "--mic-uri"
+      - "tcp://microphone:10600"
+      - "--snd-uri"
+      - "tcp://playback:10601"
+      - "--wake-uri"
+      - "tcp://openwakeword:10400"
+      - "--wake-word-name" # If this is not here when --wake-uri is specified, the satellite will get stuck!
+      - "hey_jarvis"
+      - "--event-uri"
+      - "tcp://event-handler:10500"
+      - "--debug"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  event-handler:
+    container_name: event-handler
+    image: ghcr.io/timp4w/wyoming-event-client:main
+    hostname: event-handler
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - "/dev/gpiomem:/dev/gpiomem"
+      - "/dev/mem:/dev/mem"
+      - "/dev/spidev0.0:/dev/spidev0.0"
+    volumes:
+      - "/sys/class/gpio:/sys/class/gpio"
+      - "/sys/devices/platform/soc:/sys/devices/platform/soc"
+    ports:
+      - "10500:10500"
+    command:
+      - "python"
+      - "event_handler.py"
+      - "--uri"
+      - "tcp://0.0.0.0:10500"
+      - "--led-brightness"
+      - "1"
+      - "--homeassistant-token"
+      - "<HA Token>"
+      - "--debug"
+  openwakeword:
+    image: "rhasspy/wyoming-openwakeword"
+    restart: always
+    ports:
+      - "10400:10400"
+    command:
+      - "--preload-model"
+      - "hey_jarvis"
