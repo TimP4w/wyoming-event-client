@@ -166,7 +166,7 @@ class EventHandler(AsyncEventHandler):
           await asyncio.sleep(0.3)
           
     def duck_sonos(self):
-      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/awake_jarvis"
+      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/jarvis_duck_sonos"
 
       headers = {
           "Content-Type": "application/json",
@@ -175,7 +175,7 @@ class EventHandler(AsyncEventHandler):
       requests.post(HA_SYNTHESIZE_HOOK_URL, headers=headers) 
     
     def synthesize_in_ha(self, text):
-      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/announce_jarvis"
+      HA_SYNTHESIZE_HOOK_URL = "http://192.168.1.11:8123/api/services/script/jarvis_announce_sonos"
 
       curl_data = {
           "message": text
