@@ -1,4 +1,6 @@
-# wyoming-event-client
+# wyoming-respeaker-event-client
+
+! This is a test that I use in my own setup! It is not intended for wider usage (but feel free to use it anyway if it works for you)
 
 This is a custom event client for the wyoming protocol that I'm using in my setup.
 
