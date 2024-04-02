@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# MIT License Copyright (c) 2023 Michael Hansen (https://github.com/rhasspy/wyoming-satellite) 
+
 """Controls the LEDs on the ReSpeaker 4mic HAT."""
 import argparse
 import asyncio
