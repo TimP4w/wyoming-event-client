@@ -41,6 +41,17 @@ sequence:
       announce: true
 mode: single
 
-
-
 ```
+
+# Install
+- Copy `prepare.sh`, `respeaker.sh` and `docker-compose.yml` in the raspberry.
+- Run:
+```
+chmod +x prepare.sh
+chmod +x respeaker.sh
+```
+
+- run `sudo ./prepare.sh`
+- run `sudo ./respeaker.sh`
+- reboot
+- run `sudo docker-compose up -d`
