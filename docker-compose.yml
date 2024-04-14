@@ -60,7 +60,7 @@ services:
       - "host.docker.internal:host-gateway"
   event-handler:
     container_name: event-handler
-    image: ghcr.io/timp4w/wyoming-event-client:main
+    image: ghcr.io/timp4w/timp4w-wyoming-respeaker-event-client:main
     hostname: event-handler
     restart: unless-stopped
     privileged: true
