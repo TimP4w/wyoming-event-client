@@ -1,4 +1,4 @@
 gpiozero
 spidev
 wyoming==1.5.3
-requests==2.31.0
+requests==2.32.0
